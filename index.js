@@ -59,11 +59,11 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Explicitly handle ALL OPTIONS requests
-app.options('*', cors(corsOptions));
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-app.use(express.json());
-// Force Azure to handle POST correctly
+// Logging
 app.use((req, res, next) => {
   if (req.method === 'POST') {
     console.log(`Processing POST request to: ${req.url}`);
@@ -71,10 +71,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Ensure body parsing is working
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
+// Routes
 app.use("/api/users", userRoutes);
 app.use("/api/focus", focusRoutes);
 app.use("/api/auth", authRoutes);
@@ -91,18 +88,24 @@ app.get("/", (req, res) => {
 });
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: allowedOrigins, // Use same origins as Express
     methods: ['GET', 'POST'],
     credentials: true,
   },
 });
+
 initVideoSocket(io);
 initChatSocket(io);
+
 io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 });
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Allowed CORS origins:`, allowedOrigins);
+});
