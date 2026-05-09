@@ -27,14 +27,41 @@ connectDB();
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',     
-    'http://localhost:5000',    
-    process.env.FRONTEND_URL    
-  ],
-  credentials: true
-}));
+// CORS configuration - BEFORE all routes
+const allowedOrigins = [
+  'http://localhost:3000',     
+  'http://localhost:5000',
+  process.env.FRONTEND_URL,
+  'https://suraiyya.vercel.app'
+].filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    console.log('Request origin:', origin); // Debug log
+    
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+      callback(null, true);
+    } else {
+      console.log(`CORS blocked origin: ${origin}`);
+      console.log(`Allowed origins:`, allowedOrigins);
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+
+// Explicitly handle ALL OPTIONS requests
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 // Force Azure to handle POST correctly
 app.use((req, res, next) => {
