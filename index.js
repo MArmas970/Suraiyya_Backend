@@ -27,7 +27,14 @@ connectDB();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',     // for local frontend development
+    'http://localhost:5000',     // if using Vite
+    process.env.FRONTEND_URL     // we'll set this in Azure
+  ],
+  credentials: true
+}));
 app.use(express.json());
 // Force Azure to handle POST correctly
 app.use((req, res, next) => {
