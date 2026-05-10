@@ -13,7 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import blocklistRoutes from "./routes/blocklist.js";
 import http from 'http';
-import {Server} from 'socket.io';
+import { Server } from 'socket.io';
 import { initVideoSocket, rooms } from "./videoSocket.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import chatRoutes from "./chatRoutes.js";
@@ -27,49 +27,34 @@ connectDB();
 
 const app = express();
 
-// CORS configuration - BEFORE all routes
+// CORS configuration
 const allowedOrigins = [
-  'http://localhost:3000',     
+  'http://localhost:3000',
   'http://localhost:5000',
-  process.env.FRONTEND_URL,
-  'https://suraiyya.vercel.app'
+  process.env.FRONTEND_URL
 ].filter(Boolean);
 
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log('Request origin:', origin); // Debug log
+    console.log('Request origin:', origin);
     
-    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
       callback(null, true);
     } else {
       console.log(`CORS blocked origin: ${origin}`);
-      console.log(`Allowed origins:`, allowedOrigins);
       callback(null, false);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Length', 'X-Request-Id'],
-  maxAge: 86400 // 24 hours
 };
 
 app.use(cors(corsOptions));
-
-// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Logging
-app.use((req, res, next) => {
-  if (req.method === 'POST') {
-    console.log(`Processing POST request to: ${req.url}`);
-  }
-  next();
-});
 
 // Routes
 app.use("/api/users", userRoutes);
@@ -89,20 +74,21 @@ app.get("/", (req, res) => {
 
 const server = http.createServer(app);
 
+// Socket.IO setup with production config
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins, // Use same origins as Express
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
+  transports: ['websocket', 'polling'], // ← ADD
+  pingTimeout: 60000, // ← ADD
+  pingInterval: 25000, // ← ADD
 });
 
+// Initialize namespaces
 initVideoSocket(io);
 initChatSocket(io);
-
-io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
-});
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
