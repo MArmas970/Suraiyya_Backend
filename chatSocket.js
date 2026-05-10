@@ -3,11 +3,11 @@ import Conversation from './models/Conversation.js';
 import User from './models/User.js';
 
 function initChatSocket(io) {
-  io.on('connection', (socket) => {
+  const chatNamespace = io.of('/chat'); // ← ADD THIS LINE
+
+  chatNamespace.on('connection', (socket) => { // ← CHANGE io to chatNamespace
 
     // ─── Join conversation rooms ──────────────────────────────────────────────
-    // Called when a user opens the chat page — joins all their conversation
-    // rooms so they receive messages in real time
     socket.on('chat-connect', ({ userId, conversationIds }) => {
       if (!userId || !conversationIds) return;
 
@@ -21,7 +21,6 @@ function initChatSocket(io) {
     });
 
     // ─── Join a single new conversation room ─────────────────────────────────
-    // Called when a user creates or opens a new conversation
     socket.on('chat-join-conversation', ({ conversationId }) => {
       if (!conversationId) return;
       socket.join(`chat:${conversationId}`);
@@ -33,7 +32,6 @@ function initChatSocket(io) {
       if (!conversationId || !senderId || !content?.trim()) return;
 
       try {
-        // Fetch the conversation and sender's blocked list
         const [conversation, sender] = await Promise.all([
           Conversation.findById(conversationId).populate('participants', '_id'),
           User.findById(senderId).select('blockedUsers friends'),
@@ -41,14 +39,12 @@ function initChatSocket(io) {
 
         if (!conversation || !sender) return;
 
-        // For DMs — check if either user has blocked the other
         if (conversation.type === 'dm') {
           const otherParticipant = conversation.participants.find(
             (p) => p._id.toString() !== senderId
           );
 
           if (otherParticipant) {
-            // Check if sender has blocked the other user
             const isBlocked = sender.blockedUsers
               ?.map((id) => id.toString())
               .includes(otherParticipant._id.toString());
@@ -61,7 +57,6 @@ function initChatSocket(io) {
               return;
             }
 
-            // Check if the other user has blocked the sender
             const otherUser = await User.findById(otherParticipant._id)
               .select('blockedUsers friends');
             
@@ -77,7 +72,6 @@ function initChatSocket(io) {
               return;
             }
 
-            // Check if they are still friends
             const isFriend = sender.friends
               ?.map((id) => id.toString())
               .includes(otherParticipant._id.toString());
@@ -92,7 +86,6 @@ function initChatSocket(io) {
           }
         }
 
-        // Save and broadcast message as normal
         const message = await Message.create({
           conversationId,
           sender: senderId,
@@ -103,7 +96,6 @@ function initChatSocket(io) {
         await message.populate('sender', 'userName email');
 
         await Conversation.findByIdAndUpdate(conversationId, {
-          // Remove sender from deletedBy so conversation reappears for them
           $pull: { deletedBy: senderId },
           lastMessage: {
             content: message.content,
@@ -113,30 +105,26 @@ function initChatSocket(io) {
           updatedAt: new Date(),
         });
 
-        // Notify all participants in case any of them had deleted the conversation
         const updatedConversation = await Conversation.findById(conversationId)
           .populate('participants', 'userName email')
           .populate('lastMessage.sender', 'userName');
 
         updatedConversation.participants.forEach((participant) => {
-          // Find the socket for this participant
-          const participantSocketId = [...io.sockets.sockets.values()]
+          const participantSocketId = [...chatNamespace.sockets.values()] // ← CHANGE
             .find((s) => s.data.chatUserId === participant._id.toString())
             ?.id;
 
           if (participantSocketId) {
-            // Re-join the conversation room in case they left
-            io.sockets.sockets.get(participantSocketId)?.join(`chat:${conversationId}`);
+            chatNamespace.sockets.get(participantSocketId)?.join(`chat:${conversationId}`); // ← CHANGE
 
-            // Notify them to re-fetch their conversations
-            io.to(participantSocketId).emit('chat-conversation-restored', {
+            chatNamespace.to(participantSocketId).emit('chat-conversation-restored', { // ← CHANGE
               conversationId,
               conversation: updatedConversation,
             });
           }
         });
 
-        io.to(`chat:${conversationId}`).emit('chat-receive-message', {
+        chatNamespace.to(`chat:${conversationId}`).emit('chat-receive-message', { // ← CHANGE
           message,
           conversationId,
         });
@@ -153,7 +141,6 @@ function initChatSocket(io) {
       if (!conversationId || !userId) return;
 
       try {
-        // Mark all unread messages in this conversation as read by this user
         await Message.updateMany(
           {
             conversationId,
@@ -164,7 +151,6 @@ function initChatSocket(io) {
           }
         );
 
-        // Notify others in the room that this user has read the messages
         socket.to(`chat:${conversationId}`).emit('chat-messages-read', {
           conversationId,
           userId,
@@ -192,10 +178,8 @@ function initChatSocket(io) {
       });
     });
 
-    // ─── Cleanup on disconnect ────────────────────────────────────────────────
     socket.on('disconnect', () => {
       // Socket.IO automatically removes the socket from all rooms on disconnect
-      // Nothing extra needed here — video disconnect is handled in videoSocket.js
     });
   });
 }
