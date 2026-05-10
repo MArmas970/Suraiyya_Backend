@@ -55,7 +55,7 @@ export const updateSession = async (req, res) => {
     const { userId } = req.params;
     
     const session = await FocusSession.findOneAndUpdate(
-      { userId, isActive: true }, // Only update if session is active
+      { userId }, // Only update if session is active
       {
         $inc: { totalDuration: 1 }, // Increment by 1 minute
         $set: { currentEndTime: new Date() },
