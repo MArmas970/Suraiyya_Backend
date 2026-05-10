@@ -1,7 +1,9 @@
 const rooms = new Map(); // roomCode → Set of socket IDs
 
 function initVideoSocket(io) {
-  io.on('connection', (socket) => {
+  const videoNamespace = io.of('/video'); // ← ADD THIS LINE
+
+  videoNamespace.on('connection', (socket) => { // ← CHANGE io to videoNamespace
     console.log(`[Video] Socket connected: ${socket.id}`);
 
     socket.on('join-room', ({ roomCode, userId, userName, isCreating }) => {
@@ -23,7 +25,7 @@ function initVideoSocket(io) {
         return;
       }
 
-      leaveRoom(socket, io);
+      leaveRoom(socket, videoNamespace); // ← CHANGE io to videoNamespace
 
       room.add(socket.id);
       rooms.set(roomCode, room);
@@ -36,7 +38,7 @@ function initVideoSocket(io) {
       const existingPeers = [...room]
         .filter((id) => id !== socket.id)
         .map((id) => {
-          const s = io.sockets.sockets.get(id);
+          const s = videoNamespace.sockets.get(id); // ← CHANGE
           return {
             socketId: id,
             userId: s?.data?.userId,
@@ -55,50 +57,50 @@ function initVideoSocket(io) {
       console.log(`[Video] ${userName} joined room ${roomCode} — ${room.size}/4 peers`);
     });
 
-    socket.on('leave-room', () => leaveRoom(socket, io));
+    socket.on('leave-room', () => leaveRoom(socket, videoNamespace)); // ← CHANGE
 
     socket.on('signal-offer', ({ targetSocketId, offer }) => {
-        io.to(targetSocketId).emit('signal-offer', {
-            offer,
-            fromSocketId: socket.id,
-            fromUserId: socket.data.userId,
-            fromUserName: socket.data.userName,
-        });
+      videoNamespace.to(targetSocketId).emit('signal-offer', { // ← CHANGE
+        offer,
+        fromSocketId: socket.id,
+        fromUserId: socket.data.userId,
+        fromUserName: socket.data.userName,
+      });
     });
 
     socket.on('signal-answer', ({ targetSocketId, answer }) => {
-        io.to(targetSocketId).emit('signal-answer', {
-            answer,
-            fromSocketId: socket.id,
-        });
+      videoNamespace.to(targetSocketId).emit('signal-answer', { // ← CHANGE
+        answer,
+        fromSocketId: socket.id,
+      });
     });
 
     socket.on('signal-ice', ({ targetSocketId, candidate }) => {
-        io.to(targetSocketId).emit('signal-ice', {
-            candidate,
-            fromSocketId: socket.id,
-        });
+      videoNamespace.to(targetSocketId).emit('signal-ice', { // ← CHANGE
+        candidate,
+        fromSocketId: socket.id,
+      });
     });
 
     socket.on('media-state', ({ audio, video }) => {
-        const roomCode = socket.data.roomCode;
-        if (!roomCode) return;
+      const roomCode = socket.data.roomCode;
+      if (!roomCode) return;
 
-        socket.to(roomCode).emit('peer-media-state', {
-            socketId: socket.id,
-            audio,
-            video,
-        });
+      socket.to(roomCode).emit('peer-media-state', {
+        socketId: socket.id,
+        audio,
+        video,
+      });
     });
 
     socket.on('disconnect', () => {
       console.log(`[Video] Socket disconnected: ${socket.id}`);
-      leaveRoom(socket, io);
+      leaveRoom(socket, videoNamespace); // ← CHANGE
     });
   });
 }
 
-function leaveRoom(socket, io) {
+function leaveRoom(socket, namespace) { // ← ADD namespace parameter
   const roomCode = socket.data.roomCode;
   if (!roomCode) return;
 
@@ -120,4 +122,4 @@ function leaveRoom(socket, io) {
   socket.data.userName = null;
 }
 
-module.exports = { initVideoSocket, rooms };
+export { initVideoSocket, rooms }; // ← CHANGE to ES6 export
