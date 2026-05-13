@@ -62,9 +62,9 @@ router.post('/conversations/dm', async (req, res) => {
 // ─── Create a group chat ──────────────────────────────────────────────────────
 router.post('/conversations/group', async (req, res) => {
   try {
-    const { userName, participants, adminId } = req.body;
+    const { name, participants, adminId } = req.body;
 
-    if (!userName?.trim()) {
+    if (!name?.trim()) {
       return res.status(400).json({ error: 'Group name is required' });
     }
 
@@ -76,12 +76,12 @@ router.post('/conversations/group', async (req, res) => {
 
     const conversation = await Conversation.create({
       type: 'group',
-      userName: userName.trim(),
+      name: name.trim(),
       participants: allParticipants,
       admin: adminId,
     });
 
-    const populated = await conversation.populate('participants', 'userName email');
+    const populated = await conversation.populate('participants', 'name email');
     res.status(201).json(populated);
   } catch (err) {
     console.error('[Chat] create group error:', err);
