@@ -63,7 +63,7 @@ router.post('/conversations/dm', async (req, res) => {
 router.post('/conversations/group', async (req, res) => {
   try {
     const { name, participants, adminId } = req.body;
-
+    console.log("Group name: ", name);
     if (!name?.trim()) {
       return res.status(400).json({ error: 'Group name is required' });
     }
